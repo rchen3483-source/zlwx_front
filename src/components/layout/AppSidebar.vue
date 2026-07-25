@@ -41,14 +41,14 @@
         <span class="nav-icon">
           <img class="nav-menu-icon" src="/assets/nav-system-setting.png" alt="System Setting图标" />
         </span>
-        <span>System Settings</span>
+        <span>通用设置</span>
         <span class="chevron">⌄</span>
       </a>
       <a class="nav-item" href="#">
         <span class="nav-icon">
           <img class="nav-menu-icon" src="/assets/nav-usb-key.png" alt="USB Key图标" />
         </span>
-        <span>Usb Key</span>
+        <span>API Key</span>
         <span class="chevron">⌄</span>
       </a>
     </nav>
