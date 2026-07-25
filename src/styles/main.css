@@ -2855,6 +2855,35 @@ button {
   }
 }
 
+.streaming-status-copy {
+  color: #3974ef;
+}
+
+.streaming-detail {
+  min-height: 180px;
+  white-space: pre-wrap;
+}
+
+.streaming-placeholder {
+  color: #8a96aa;
+}
+
+.streaming-caret {
+  display: inline-block;
+  width: 2px;
+  height: 1.1em;
+  margin-left: 4px;
+  vertical-align: -0.12em;
+  background: #3974ef;
+  animation: streaming-caret-blink 0.8s steps(1) infinite;
+}
+
+@keyframes streaming-caret-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
 @keyframes authGridDrift {
   0% {
     transform: translate3d(0, 0, 0);

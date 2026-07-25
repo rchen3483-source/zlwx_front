@@ -1,90 +1,158 @@
 import request from './request'
 
 /**
- * 生成小红书文案
- *
- * 后端接口协议对齐 scenic-viral-content-generator：
- * 输入：符合 scenic-content-request/v1 schema 的请求体
- * 输出：符合 scenic-generated-post/v1 schema 的响应体
+ * 搜索小红书爆款帖子（借鉴创作页 loading 阶段可用于拉取参考）
+ * POST /api/v1/viral-posts/search
  *
  * @param {Object} payload
- * @param {string} payload.topic            必填。文案主题
- * @param {string[]} payload.keywords       必填。关键词列表
- * @param {string} [payload.platform='xhs'] 平台，xhs / douyin / kuaishou
- * @param {string} [payload.guide_text]     官方景区/产品介绍文本
- * @param {Object} [payload.reference]      参考帖子（用于风格分析）
- * @param {string} [payload.reference.title]
- * @param {string} [payload.reference.content]
- * @param {number} [payload.reference.likes]
- * @param {number} [payload.reference.comments]
- * @param {string} [payload.audience]       目标受众
- * @param {string} [payload.intent]         生成意图
- * @returns {Promise<GeneratedPost>}
+ * @param {'xiaohongshu'} payload.scenario_code
+ * @param {string} payload.topic
+ * @returns {Promise<{keywords: string[], items: ViralPostReference[]}>}
  *
- * @typedef {Object} GeneratedPost
- * @property {string} candidate_id
+ * @typedef {Object} ViralPostReference
  * @property {string} title
- * @property {string} body
- * @property {string[]} hashtags
- * @property {string[]} used_fact_ids
- * @property {string} hook
- * @property {ImageBrief[]} image_briefs
- * @property {string[]} revision_notes
- * @property {string} schema_version   // scenic-generated-post/v1
- * @property {string} platform
- * @property {string} topic
- * @property {string} generated_at     // ISO 8601
- * @property {string} text_provider    // mock / openai / dashscope ...
+ * @property {string} content
+ * @property {number} likes    非负整数
+ * @property {number} comments 非负整数
+ */
+export const searchViralPosts = (payload) => {
+  return request.post('/v1/viral-posts/search', payload)
+}
+
+/**
+ * 基于参考帖子生成小红书文案
+ * POST /api/v1/style-transform
  *
- * @typedef {Object} ImageBrief
- * @property {string} purpose
- * @property {string} subject
- * @property {string} composition
+ * @param {Object} payload
+ * @param {ViralPostReference} payload.reference
+ * @param {string[]} payload.keywords 至少 1 个，去重
+ * @param {string} payload.topic
+ * @returns {Promise<{content: string}>} content 为完整生成的文案（含标题/正文/tag）
  */
 export const generateContent = (payload) => {
-  return request.post('/content/generate', payload)
+  return request.post('/v1/style-transform', payload)
 }
 
 /**
- * 获取生成过程中的配图提示词（scenic-image-prompts/v1）
- * 由后端在生成完成后异步产出，通过 candidate_id 检索。
+ * 流式生成小红书文案。
+ * 服务端按 NDJSON 依次返回 delta、done 或 error 事件。
  *
- * @param {string} candidateId
- * @returns {Promise<ImagePromptPack>}
- *
- * @typedef {Object} ImagePromptPack
- * @property {string} schema_version   // scenic-image-prompts/v1
- * @property {string} generated_at
- * @property {ImagePromptItem[]} items
- *
- * @typedef {Object} ImagePromptItem
- * @property {string} image_id
- * @property {string} purpose
- * @property {string} prompt
- * @property {string} negative_prompt
- * @property {string} size             // e.g. "1024x1365"
- * @property {string} ratio            // e.g. "3:4"
+ * @param {Object} payload
+ * @param {Object} options
+ * @param {(chunk: string) => void} [options.onDelta]
+ * @param {AbortSignal} [options.signal]
+ * @returns {Promise<{content: string}>}
  */
-export const getImagePrompts = (candidateId) => {
-  return request.get(`/content/${candidateId}/image-prompts`)
+export const generateContentStream = async (payload, options = {}) => {
+  const { onDelta = () => {}, signal } = options
+  const headers = {
+    Accept: 'application/x-ndjson',
+    'Content-Type': 'application/json'
+  }
+  const token = localStorage.getItem('token')
+
+  if (token) {
+    headers.Authorization = `Bearer ${token}`
+  }
+
+  const response = await fetch('/api/v1/style-transform/stream', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(payload),
+    signal
+  })
+
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => null)
+    throw new Error(errorBody?.error?.message || `生成请求失败（${response.status}）`)
+  }
+
+  if (!response.body) {
+    throw new Error('当前浏览器不支持流式生成')
+  }
+
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  let content = ''
+  let completed = false
+
+  const consumeLine = (line) => {
+    if (!line.trim()) return
+
+    let event
+    try {
+      event = JSON.parse(line)
+    } catch {
+      throw new Error('生成服务返回了无效的流式数据')
+    }
+
+    if (event.type === 'delta' && typeof event.content === 'string') {
+      content += event.content
+      onDelta(event.content)
+      return
+    }
+
+    if (event.type === 'done') {
+      completed = true
+      return
+    }
+
+    if (event.type === 'error') {
+      throw new Error(event.message || 'AI 生成失败，请稍后重试')
+    }
+
+    throw new Error('生成服务返回了未知事件')
+  }
+
+  const consumeBufferedLines = () => {
+    let newlineIndex = buffer.indexOf('\n')
+    while (newlineIndex >= 0) {
+      consumeLine(buffer.slice(0, newlineIndex).replace(/\r$/, ''))
+      buffer = buffer.slice(newlineIndex + 1)
+      newlineIndex = buffer.indexOf('\n')
+    }
+  }
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      consumeBufferedLines()
+    }
+
+    buffer += decoder.decode()
+    consumeBufferedLines()
+    if (buffer.trim()) {
+      consumeLine(buffer)
+    }
+  } catch (error) {
+    await reader.cancel().catch(() => {})
+    throw error
+  } finally {
+    reader.releaseLock()
+  }
+
+  if (!completed) {
+    throw new Error('生成连接意外中断，请重新生成')
+  }
+
+  return { content }
 }
 
 /**
- * 获取生成的验证报告（scenic-validation-report/v1）
- * 事实准确性、平台规范、原创性检查
+ * 发布已生成文案到小红书
+ * POST /api/v1/xiaohongshu/publish
  *
- * @param {string} candidateId
- * @returns {Promise<Object>}
+ * @param {{content: string}} payload
+ * @returns {Promise<{result: {platform_post_id: string, published_at: string} | null}>}
  */
-export const getValidationReport = (candidateId) => {
-  return request.get(`/content/${candidateId}/validation`)
+export const publishToXiaohongshu = (payload) => {
+  return request.post('/v1/xiaohongshu/publish', payload)
 }
 
 // ==== 以下为占位接口，后端未实现时保留 ====
-
-export const publishArticle = (data) => {
-  return request.post('/articles/publish', data)
-}
 
 export const saveDraft = (data) => {
   return request.post('/articles/draft', data)

@@ -1,9 +1,12 @@
 <script setup>
 import { nextTick, onBeforeUnmount, ref } from 'vue'
-import { RouterLink } from 'vue-router'
+import { useRouter } from 'vue-router'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import AppTopbar from '@/components/layout/AppTopbar.vue'
 import { trendRecommendations } from '@/api/mockData.js'
+import { searchViralPosts } from '@/api/publish.js'
+
+const router = useRouter()
 
 const xiaohongshu = ref(false)
 const douyin = ref(false)
@@ -15,6 +18,12 @@ const selectedImages = ref([])
 const trendVisible = ref(false)
 const trendCardsVisible = ref(false)
 const fileInput = ref(null)
+
+// 搜索相关状态
+const searchLoading = ref(false)
+const searchError = ref('')
+const searchKeywords = ref([])
+const viralPosts = ref([])
 
 const appendFiles = (files) => {
   const imageFiles = Array.from(files).filter((file) => file.type.startsWith('image/'))
@@ -79,19 +88,77 @@ const removeImage = (imageId) => {
 }
 
 const showTrends = async () => {
-  if (!trendVisible.value) {
-    trendVisible.value = true
+  const topic = materialText.value.trim()
+
+  if (!topic) {
+    searchError.value = '请输入文本资料'
+    return
+  }
+
+  searchLoading.value = true
+  searchError.value = ''
+
+  try {
+    const response = await searchViralPosts({
+      scenario_code: 'xiaohongshu',
+      topic
+    })
+
+    searchKeywords.value = response.keywords || []
+    viralPosts.value = response.items || []
+
+    // 后端暂未实现真实搜索，降级使用 mock 数据
+    if (!viralPosts.value.length) {
+      searchKeywords.value = [topic, '旅行攻略', '小红书种草', '打卡推荐']
+      viralPosts.value = trendRecommendations.map((item) => ({
+        ...item,
+        content: item.copy,
+        likes: 1200,
+        comments: 86
+      }))
+    }
+
+    // 触发原有的展开动画
+    if (!trendVisible.value) {
+      trendVisible.value = true
+      await nextTick()
+      requestAnimationFrame(() => {
+        trendCardsVisible.value = true
+      })
+      return
+    }
+
+    trendCardsVisible.value = false
     await nextTick()
     requestAnimationFrame(() => {
       trendCardsVisible.value = true
     })
-    return
+  } catch (error) {
+    searchError.value = error?.message || '检索失败，请重试'
+    console.error('[searchViralPosts] failed:', error)
+  } finally {
+    searchLoading.value = false
   }
+}
 
-  trendCardsVisible.value = false
-  await nextTick()
-  requestAnimationFrame(() => {
-    trendCardsVisible.value = true
+const goToInspiration = (item) => {
+  router.push({
+    name: 'inspiration',
+    query: {
+      topic: materialText.value.trim()
+    },
+    state: {
+      reference: {
+        title: item.title,
+        content: item.content || item.copy || item.title,
+        likes: item.likes ?? 1200,
+        comments: item.comments ?? 86
+      },
+      keywords: searchKeywords.value.length
+        ? searchKeywords.value
+        : [materialText.value.trim()],
+      topic: materialText.value.trim()
+    }
   })
 }
 
@@ -188,18 +255,29 @@ onBeforeUnmount(() => {
           </button>
 
           <div class="search-actions">
-            <button class="primary-btn" type="button" @click="showTrends">开始检索</button>
+            <button
+              class="primary-btn"
+              type="button"
+              @click="showTrends"
+              :disabled="searchLoading || !materialText.trim()"
+            >
+              {{ searchLoading ? '检索中...' : '开始检索' }}
+            </button>
           </div>
         </div>
+
+        <p v-if="searchError" class="search-error" style="color: #e74c3c; margin-top: 12px; font-size: 14px;">
+          {{ searchError }}
+        </p>
       </section>
 
-      <div class="keyword-row">
+      <div class="keyword-row" v-if="searchKeywords.length">
         <span class="keyword-label">推荐关键词：</span>
-        <span class="keyword-chip">故宫博物院</span>
-        <span class="keyword-chip">西湖断桥</span>
-        <span class="keyword-chip">丽江古城</span>
-        <span class="keyword-chip">黄山云海</span>
-        <span class="keyword-chip">稻城亚丁</span>
+        <span
+          v-for="keyword in searchKeywords"
+          :key="keyword"
+          class="keyword-chip"
+        >{{ keyword }}</span>
       </div>
 
       <div class="section-head trend-head trend-module" :class="{ 'is-visible': trendVisible }">
@@ -209,7 +287,7 @@ onBeforeUnmount(() => {
 
       <div class="trend-grid trend-module" :class="{ 'is-visible': trendVisible }">
         <article
-          v-for="item in trendRecommendations"
+          v-for="item in (viralPosts.length ? viralPosts : trendRecommendations)"
           :key="item.id"
           class="trend-card card"
           :class="{ 'is-visible': trendCardsVisible }"
@@ -235,7 +313,13 @@ onBeforeUnmount(() => {
 
           <div class="trend-actions">
             <button class="secondary-btn" type="button">查看详情</button>
-            <RouterLink class="primary-btn small button-link" to="/inspiration-create">发布同款</RouterLink>
+            <button
+              class="primary-btn small"
+              type="button"
+              @click="goToInspiration(item)"
+            >
+              发布同款
+            </button>
           </div>
         </article>
       </div>
