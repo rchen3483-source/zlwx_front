@@ -190,7 +190,6 @@ const guideText =
 const defaultKeywords = ['大理旅行', '洱海攻略', '四天三晚', '云南旅游']
 const publishLink = 'https://www.xiaohongshu.com/user/profile/travel_dali'
 const analysisDuration = 3000
-const publishDuration = 3000
 const softMinDuration = 1200
 const analysisSteps = ['素材识别完成', '路线解析中', '排版生成中', '封面优化中', '即将完成']
 
@@ -252,12 +251,6 @@ const finishAnalysis = () => {
   stopAnalysisAnimation()
   analysisProgress.value = 100
   isAnalyzing.value = false
-}
-
-const finishPublishing = () => {
-  stopPublishAnimation()
-  publishProgress.value = 100
-  publishState.value = 'published'
 }
 
 const stepAnalysis = (timestamp) => {
