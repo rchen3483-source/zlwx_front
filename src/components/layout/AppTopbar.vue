@@ -22,6 +22,7 @@
 
 <script setup>
 import { computed } from 'vue'
+import { useUserStore } from '@/stores/user.js'
 
 defineProps({
   title: {
@@ -38,5 +39,6 @@ defineProps({
   }
 })
 
-const username = computed(() => 'Slash X')
+const userStore = useUserStore()
+const username = computed(() => userStore.username || 'Slash X')
 </script>

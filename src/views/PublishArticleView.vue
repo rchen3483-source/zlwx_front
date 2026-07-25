@@ -1,5 +1,5 @@
 <script setup>
-import { nextTick, ref } from 'vue'
+import { nextTick, onBeforeUnmount, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import AppTopbar from '@/components/layout/AppTopbar.vue'
@@ -9,8 +9,74 @@ const xiaohongshu = ref(false)
 const douyin = ref(false)
 const wechat = ref(false)
 const bilibili = ref(false)
+const materialText = ref('')
+const isDragOver = ref(false)
+const selectedImages = ref([])
 const trendVisible = ref(false)
 const trendCardsVisible = ref(false)
+const fileInput = ref(null)
+
+const appendFiles = (files) => {
+  const imageFiles = Array.from(files).filter((file) => file.type.startsWith('image/'))
+
+  if (!imageFiles.length) {
+    return
+  }
+
+  const nextImages = imageFiles.map((file, index) => ({
+    id: `${file.name}-${file.lastModified}-${index}`,
+    name: file.name,
+    url: URL.createObjectURL(file)
+  }))
+
+  selectedImages.value = [...selectedImages.value, ...nextImages]
+}
+
+const openFilePicker = () => {
+  fileInput.value?.click()
+}
+
+const handleFileChange = (event) => {
+  const { files } = event.target
+
+  if (!files?.length) {
+    return
+  }
+
+  appendFiles(files)
+  event.target.value = ''
+}
+
+const handleDragEnter = () => {
+  isDragOver.value = true
+}
+
+const handleDragLeave = (event) => {
+  if (event.currentTarget.contains(event.relatedTarget)) {
+    return
+  }
+
+  isDragOver.value = false
+}
+
+const handleDrop = (event) => {
+  event.preventDefault()
+  isDragOver.value = false
+
+  if (event.dataTransfer?.files?.length) {
+    appendFiles(event.dataTransfer.files)
+  }
+}
+
+const removeImage = (imageId) => {
+  const target = selectedImages.value.find((item) => item.id === imageId)
+
+  if (target) {
+    URL.revokeObjectURL(target.url)
+  }
+
+  selectedImages.value = selectedImages.value.filter((item) => item.id !== imageId)
+}
 
 const showTrends = async () => {
   if (!trendVisible.value) {
@@ -28,6 +94,12 @@ const showTrends = async () => {
     trendCardsVisible.value = true
   })
 }
+
+onBeforeUnmount(() => {
+  selectedImages.value.forEach((item) => {
+    URL.revokeObjectURL(item.url)
+  })
+})
 </script>
 
 <template>
@@ -74,14 +146,43 @@ const showTrends = async () => {
         <h2>输入景区/场所图文资料</h2>
       </div>
 
-      <section class="search-panel card">
+      <section
+        class="search-panel card"
+        :class="{ 'search-panel-dragover': isDragOver }"
+        @dragenter.prevent="handleDragEnter"
+        @dragover.prevent="handleDragEnter"
+        @dragleave="handleDragLeave"
+        @drop="handleDrop"
+      >
         <div class="search-input">
           <span class="search-icon">⌕</span>
-          <span>这是八达岭长城，希望展示长城的宏伟壮丽......</span>
+          <textarea
+            v-model="materialText"
+            class="search-textarea"
+            placeholder="开始输入文本资料"
+          ></textarea>
         </div>
 
+        <input
+          ref="fileInput"
+          class="sr-only-input"
+          type="file"
+          accept="image/*"
+          multiple
+          @change="handleFileChange"
+        />
+
+        <div v-if="selectedImages.length" class="search-upload-list">
+          <div v-for="image in selectedImages" :key="image.id" class="search-upload-item">
+            <img class="search-upload-thumb" :src="image.url" :alt="image.name" />
+            <button class="search-upload-remove" type="button" @click="removeImage(image.id)">×</button>
+          </div>
+        </div>
+
+        <p class="search-drop-hint">支持直接拖拽图片到这里，或点击“添加图片”选择本地文件</p>
+
         <div class="search-footer">
-          <button class="upload-photo-btn" type="button">
+          <button class="upload-photo-btn" type="button" @click="openFilePicker">
             <img class="upload-photo-icon-image" src="/assets/upload-photo-icon.png" alt="" aria-hidden="true" />
             <span>添加图片</span>
           </button>
@@ -134,7 +235,7 @@ const showTrends = async () => {
 
           <div class="trend-actions">
             <button class="secondary-btn" type="button">查看详情</button>
-            <RouterLink class="primary-btn small button-link" to="/inspiration-create">借鉴创作</RouterLink>
+            <RouterLink class="primary-btn small button-link" to="/inspiration-create">发布同款</RouterLink>
           </div>
         </article>
       </div>
