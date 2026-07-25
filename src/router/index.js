@@ -8,16 +8,24 @@ const routes = [
     meta: { title: '首页' }
   },
   {
-    path: '/publish',
+    path: '/publish-article',
     name: 'publish',
     component: () => import('@/views/PublishArticleView.vue'),
+    alias: ['/publish'],
     meta: { title: '图文发布' }
   },
   {
-    path: '/inspiration',
+    path: '/inspiration-create',
     name: 'inspiration',
     component: () => import('@/views/InspirationCreateView.vue'),
+    alias: ['/inspiration'],
     meta: { title: '借鉴创作' }
+  },
+  {
+    path: '/note-tracking',
+    name: 'note-tracking',
+    component: () => import('@/views/NoteTrackingView.vue'),
+    meta: { title: '笔记数据跟踪' }
   }
 ]
 

@@ -1,12 +1,33 @@
 <script setup>
-import { ref } from 'vue'
+import { nextTick, ref } from 'vue'
+import { RouterLink } from 'vue-router'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import AppTopbar from '@/components/layout/AppTopbar.vue'
+import { trendRecommendations } from '@/api/mockData.js'
 
 const xiaohongshu = ref(false)
 const douyin = ref(false)
 const wechat = ref(false)
 const bilibili = ref(false)
+const trendVisible = ref(false)
+const trendCardsVisible = ref(false)
+
+const showTrends = async () => {
+  if (!trendVisible.value) {
+    trendVisible.value = true
+    await nextTick()
+    requestAnimationFrame(() => {
+      trendCardsVisible.value = true
+    })
+    return
+  }
+
+  trendCardsVisible.value = false
+  await nextTick()
+  requestAnimationFrame(() => {
+    trendCardsVisible.value = true
+  })
+}
 </script>
 
 <template>
@@ -50,7 +71,7 @@ const bilibili = ref(false)
       </div>
 
       <div class="block-head block-head-spaced">
-        <h2>平台选择</h2>
+        <h2>输入景区/场所图文资料</h2>
       </div>
 
       <section class="search-panel card">
@@ -59,14 +80,15 @@ const bilibili = ref(false)
           <span>这是八达岭长城，希望展示长城的宏伟壮丽......</span>
         </div>
 
-        <div class="search-thumbs">
-          <span></span>
-          <span></span>
-          <span></span>
-        </div>
+        <div class="search-footer">
+          <button class="upload-photo-btn" type="button">
+            <img class="upload-photo-icon-image" src="/assets/upload-photo-icon.png" alt="" aria-hidden="true" />
+            <span>添加图片</span>
+          </button>
 
-        <div class="search-actions">
-          <button class="primary-btn">开始检索</button>
+          <div class="search-actions">
+            <button class="primary-btn" type="button" @click="showTrends">开始检索</button>
+          </div>
         </div>
       </section>
 
@@ -79,101 +101,40 @@ const bilibili = ref(false)
         <span class="keyword-chip">稻城亚丁</span>
       </div>
 
-      <div class="section-head trend-head">
+      <div class="section-head trend-head trend-module" :class="{ 'is-visible': trendVisible }">
         <h2>热榜推荐</h2>
         <a href="#">查看更多</a>
       </div>
 
-      <div class="trend-grid">
-        <article class="trend-card card">
+      <div class="trend-grid trend-module" :class="{ 'is-visible': trendVisible }">
+        <article
+          v-for="item in trendRecommendations"
+          :key="item.id"
+          class="trend-card card"
+          :class="{ 'is-visible': trendCardsVisible }"
+        >
           <div class="trend-top">
-            <span>#经典景点</span>
-            <strong>Top 1</strong>
+            <span>{{ item.tag }}</span>
+            <strong>{{ item.top }}</strong>
           </div>
 
           <div class="trend-media">
             <div class="play-badge">▶</div>
             <div class="trend-summary">
-              <h3>打卡万里长城啦！</h3>
-              <p>32.5万人参与，15.3亿浏览</p>
+              <h3>{{ item.title }}</h3>
+              <p>{{ item.meta }}</p>
             </div>
           </div>
 
           <p class="trend-copy">
-            说明：适用于xxxxxxxx推广，此处填写视频文案方使用户选择。适用于xxxxxx推广，此处填写视频文案方使用户选择。适用于xxxxxxxx推广，
+            {{ item.copy }}
           </p>
 
-          <img class="trend-photo" src="/assets/reference-photo.png" alt="参考图" />
+          <img class="trend-photo" :src="item.image" alt="参考图" />
 
           <div class="trend-actions">
-            <button class="secondary-btn">查看详情</button>
-            <a class="primary-btn small button-link" href="./inspiration-create.html">借鉴创作</a>
-          </div>
-        </article>
-
-        <article class="trend-card card">
-          <div class="trend-top">
-            <span>#经典景点</span>
-            <strong>Top 2</strong>
-          </div>
-          <div class="trend-media">
-            <div class="play-badge">▶</div>
-            <div class="trend-summary">
-              <h3>打卡万里长城啦！</h3>
-              <p>32.5万人参与，15.3亿浏览</p>
-            </div>
-          </div>
-          <p class="trend-copy">
-            说明：适用于xxxxxxxx推广，此处填写视频文案方使用户选择。适用于xxxxxx推广，此处填写视频文案方使用户选择。适用于xxxxxxxx推广，
-          </p>
-          <img class="trend-photo" src="/assets/reference-photo.png" alt="参考图" />
-          <div class="trend-actions">
-            <button class="secondary-btn">查看详情</button>
-            <a class="primary-btn small button-link" href="./inspiration-create.html">借鉴创作</a>
-          </div>
-        </article>
-
-        <article class="trend-card card">
-          <div class="trend-top">
-            <span>#经典景点</span>
-            <strong>Top 3</strong>
-          </div>
-          <div class="trend-media">
-            <div class="play-badge">▶</div>
-            <div class="trend-summary">
-              <h3>打卡万里长城啦！</h3>
-              <p>32.5万人参与，15.3亿浏览</p>
-            </div>
-          </div>
-          <p class="trend-copy">
-            说明：适用于xxxxxxxx推广，此处填写视频文案方使用户选择。适用于xxxxxx推广，此处填写视频文案方使用户选择。适用于xxxxxxxx推广，
-          </p>
-          <img class="trend-photo" src="/assets/reference-photo.png" alt="参考图" />
-          <div class="trend-actions">
-            <button class="secondary-btn">查看详情</button>
-            <a class="primary-btn small button-link" href="./inspiration-create.html">借鉴创作</a>
-          </div>
-        </article>
-
-        <article class="trend-card card">
-          <div class="trend-top">
-            <span>#经典景点</span>
-            <strong>Top 4</strong>
-          </div>
-          <div class="trend-media">
-            <div class="play-badge">▶</div>
-            <div class="trend-summary">
-              <h3>打卡万里长城啦！</h3>
-              <p>32.5万人参与，15.3亿浏览</p>
-            </div>
-          </div>
-          <p class="trend-copy">
-            说明：适用于xxxxxxxx推广，此处填写视频文案方使用户选择。适用于xxxxxx推广，此处填写视频文案方使用户选择。适用于xxxxxxxx推广，
-          </p>
-          <img class="trend-photo" src="/assets/reference-photo.png" alt="参考图" />
-          <div class="trend-actions">
-            <button class="secondary-btn">查看详情</button>
-            <a class="primary-btn small button-link" href="./inspiration-create.html">借鉴创作</a>
+            <button class="secondary-btn" type="button">查看详情</button>
+            <RouterLink class="primary-btn small button-link" to="/inspiration-create">借鉴创作</RouterLink>
           </div>
         </article>
       </div>

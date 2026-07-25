@@ -4,7 +4,7 @@
     <section class="hero-card card">
       <div class="section-head"><h1>新的创作 👋</h1></div>
       <div class="quick-grid">
-        <RouterLink to="/publish" class="quick-link">
+        <RouterLink to="/publish-article" class="quick-link">
           <article class="quick-item">
             <div class="quick-badge">
               <img class="quick-badge-image" src="/assets/quick-publish-article.png" alt="发布图文图标" />
