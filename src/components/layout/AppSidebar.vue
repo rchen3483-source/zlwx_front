@@ -10,19 +10,19 @@
     </div>
 
     <nav class="nav">
-      <RouterLink to="/" class="nav-item" :class="{ active: currentRoute === '/' }">
+      <RouterLink to="/" class="nav-item" :class="{ active: isAssistantRoute }">
         <span class="nav-icon">
           <img class="nav-menu-icon" src="/assets/nav-ai-assistant.png" alt="AI文宣助手图标" />
         </span>
         <span>Ai文宣助手</span>
       </RouterLink>
-      <a class="nav-item" href="#">
+      <RouterLink to="/note-tracking" class="nav-item" :class="{ active: currentRoute === '/note-tracking' }">
         <span class="nav-icon">
           <img class="nav-menu-icon" src="/assets/nav-note-tracking.png" alt="笔记数据跟踪图标" />
         </span>
         <span>笔记数据跟踪</span>
         <span class="chevron">⌄</span>
-      </a>
+      </RouterLink>
       <a class="nav-item" href="#">
         <span class="nav-icon">
           <img class="nav-menu-icon" src="/assets/nav-risk-warning.png" alt="风险预警图标" />
@@ -65,4 +65,6 @@ import { computed } from 'vue'
 
 const route = useRoute()
 const currentRoute = computed(() => route.path)
+const assistantRoutes = ['/', '/publish', '/publish-article', '/inspiration', '/inspiration-create']
+const isAssistantRoute = computed(() => assistantRoutes.includes(route.path))
 </script>
