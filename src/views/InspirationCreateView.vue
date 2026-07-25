@@ -103,6 +103,7 @@
 import { computed, onBeforeUnmount, ref } from 'vue'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import AppTopbar from '@/components/layout/AppTopbar.vue'
+import { generateContent } from '@/api/publish'
 
 const defaultState = {
   pageTitle: '借鉴创作',
@@ -111,23 +112,56 @@ const defaultState = {
   promptPlaceholder: '补充目的地、出行天数、风格调性或重点景点'
 }
 
-const publishDuration = 3000
+const referencePost = {
+  title: '云南大理四天三晚漫游攻略',
+  content:
+    '从洱海到苍山，从古城到喜洲，这条路线适合第一次来大理的人。白天看海，傍晚追日落，晚上逛古城小吃街，节奏轻松说不无聊。推荐安排洱海骑行、喜洲麦田、苍山索道、双廊咖啡和古城夜游，拍照点点，美食也很集中。',
+  likes: 0,
+  comments: 0
+}
+
+const guideText =
+  '大理位于云南省西北部，是国家历史文化名城，被誉为“风花雪月”之地。主要景点包括洱海、苍山、大理古城、喜洲古镇、双廊等。夏季平均气温 20-25 度，是理想的避暑与摄影目的地。'
+
+const defaultKeywords = ['大理旅行', '洱海攻略', '四天三晚', '云南旅游']
 const publishLink = 'https://www.xiaohongshu.com/user/profile/travel_dali'
+const softMinDuration = 1200
 
 const promptValue = ref('')
 const progress = ref(0)
 const publishState = ref('idle')
 const frameId = ref(0)
 const publishStartTime = ref(0)
+const generatedPost = ref(null)
+const errorMessage = ref('')
 
 const isPublishing = computed(() => publishState.value === 'publishing')
 const showSuccessToast = computed(() => publishState.value === 'published')
 const pageTitle = computed(() => defaultState.pageTitle)
-const pageSubtitle = computed(() => (isPublishing.value ? '正在发布到绑定账号' : defaultState.pageSubtitle))
-const detailTitle = computed(() => (isPublishing.value ? '正在发布到绑定账号' : defaultState.detailTitle))
-const promptPlaceholder = computed(() =>
-  isPublishing.value ? '发布过程中暂不可修改' : defaultState.promptPlaceholder
+const pageSubtitle = computed(() =>
+  isPublishing.value ? '正在生成文案，请稍候…' : defaultState.pageSubtitle
 )
+const detailTitle = computed(() => {
+  if (isPublishing.value) return '正在生成文案…'
+  if (generatedPost.value?.title) return generatedPost.value.title
+  return defaultState.detailTitle
+})
+const promptPlaceholder = computed(() =>
+  isPublishing.value ? '生成过程中暂不可修改' : defaultState.promptPlaceholder
+)
+
+const buildRequestPayload = () => {
+  const extraTopic = promptValue.value.trim()
+  const topic = extraTopic ? `${defaultState.detailTitle}｜${extraTopic}` : defaultState.detailTitle
+
+  return {
+    platform: 'xhs',
+    topic,
+    keywords: defaultKeywords,
+    guide_text: guideText,
+    reference: referencePost
+  }
+}
 
 const stopAnimation = () => {
   if (frameId.value) {
@@ -136,45 +170,50 @@ const stopAnimation = () => {
   }
 }
 
-const finishPublishing = () => {
-  stopAnimation()
-  progress.value = 100
-  publishState.value = 'published'
-}
-
 const stepProgress = (timestamp) => {
   if (!publishStartTime.value) {
     publishStartTime.value = timestamp
   }
 
-  const nextProgress = Math.min(((timestamp - publishStartTime.value) / publishDuration) * 100, 100)
-  progress.value = nextProgress
+  // 请求未返回前，进度条最多爬到 90%，避免用户以为已完成
+  const elapsed = timestamp - publishStartTime.value
+  const ratio = Math.min(elapsed / softMinDuration, 1)
+  progress.value = Math.min(90 * ratio, 90)
 
-  if (nextProgress >= 100) {
-    finishPublishing()
-    return
+  if (publishState.value === 'publishing') {
+    frameId.value = requestAnimationFrame(stepProgress)
   }
-
-  frameId.value = requestAnimationFrame(stepProgress)
 }
 
-const startPublishing = () => {
-  if (isPublishing.value) {
-    return
-  }
+const startPublishing = async () => {
+  if (isPublishing.value) return
 
   stopAnimation()
+  errorMessage.value = ''
+  generatedPost.value = null
   publishState.value = 'publishing'
   publishStartTime.value = 0
   progress.value = 0
-  promptValue.value = ''
   frameId.value = requestAnimationFrame(stepProgress)
+
+  try {
+    const post = await generateContent(buildRequestPayload())
+    generatedPost.value = post
+    stopAnimation()
+    progress.value = 100
+    publishState.value = 'published'
+    promptValue.value = ''
+  } catch (error) {
+    stopAnimation()
+    progress.value = 0
+    publishState.value = 'idle'
+    errorMessage.value = error?.message || '生成失败，请稍后重试'
+    console.error('[generateContent] failed:', error)
+  }
 }
 
 const copyPublishLink = async () => {
-  if (!navigator.clipboard?.writeText) {
-    return
-  }
+  if (!navigator.clipboard?.writeText) return
 
   try {
     await navigator.clipboard.writeText(publishLink)
