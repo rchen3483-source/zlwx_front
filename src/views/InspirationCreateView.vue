@@ -3,77 +3,56 @@
     <AppTopbar title="图文发布" :showCommandBtn="false" flat />
 
     <section v-if="isAnalyzing" class="inspiration-loading-shell">
-      <div class="inspiration-loading-top">
-        <div class="analysis-percent-pill">
-          <div class="analysis-percent-readout">
-            <span class="analysis-percent-value">{{ displayAnalysisProgress }}</span>
-            <span class="analysis-percent-unit">%</span>
-          </div>
-        </div>
-        <div class="analysis-heading">
-          <h1>模型正在分析中...</h1>
-          <p>系统正在解析参考内容、生成版式结构与图文发布草稿，请稍候片刻。</p>
-        </div>
-      </div>
+      <div class="analysis-wave analysis-wave-left"></div>
+      <div class="analysis-wave analysis-wave-right"></div>
 
       <div class="analysis-board">
-        <div class="analysis-steps">
-          <div
-            v-for="(step, index) in analysisSteps"
-            :key="step"
-            class="analysis-step-row"
-            :class="analysisStepClass(index)"
-          >
-            <span class="analysis-step-dot"></span>
-            <span class="analysis-step-text">{{ step }}</span>
+        <div class="analysis-card">
+          <div class="analysis-card-top">
+            <div class="analysis-card-label">
+              <span class="analysis-card-bolt">✦</span>
+              <span>Generating...</span>
+            </div>
+            <div class="analysis-card-time">
+              <span class="analysis-card-clock">◔</span>
+              <span>{{ analysisRemainingText }}</span>
+            </div>
           </div>
-        </div>
 
-        <div class="analysis-progress-panel">
-          <div class="analysis-progress-track">
-            <span class="analysis-progress-line"></span>
-            <span class="analysis-progress-fill" :style="{ width: `${displayAnalysisProgress}%` }"></span>
-            <span class="analysis-progress-node analysis-progress-node-start"></span>
+          <div class="analysis-card-main">
+            <div class="analysis-percent-readout">
+              <span class="analysis-percent-value">{{ displayAnalysisProgress }}</span>
+              <span class="analysis-percent-unit">%</span>
+            </div>
+
+            <div class="analysis-heading">
+              <h1>发布同款内容生成中</h1>
+              <p>系统正在整理参考内容、生成排版结构与发布草稿，请稍候片刻。</p>
+            </div>
+          </div>
+
+          <div class="analysis-scale">
+            <span v-for="mark in analysisScaleMarks" :key="mark">{{ mark }}</span>
+          </div>
+
+          <div class="analysis-progress-shell">
+            <div class="analysis-progress-fill-card" :style="{ width: `${Math.max(displayAnalysisProgress, 8)}%` }"></div>
             <span
-              class="analysis-progress-node analysis-progress-node-active"
-              :style="{ left: `calc(${analysisNodePosition}% - 17px)` }"
+              v-for="mark in analysisScaleMarks.slice(1, -1)"
+              :key="`line-${mark}`"
+              class="analysis-progress-divider"
             ></span>
           </div>
 
-          <div class="analysis-progress-list">
-            <div
+          <div class="analysis-step-pills">
+            <span
               v-for="(step, index) in analysisSteps"
-              :key="`${step}-line`"
-              class="analysis-progress-list-row"
+              :key="step"
+              class="analysis-step-pill"
               :class="analysisStepClass(index)"
             >
-              <span class="analysis-progress-arrow"></span>
-              <span class="analysis-progress-small-dot"></span>
-              <span class="analysis-progress-dash"></span>
-            </div>
-          </div>
-        </div>
-
-        <div class="analysis-preview-card">
-          <div class="analysis-preview-phone">
-            <div class="analysis-preview-sky"></div>
-            <div class="analysis-preview-hills"></div>
-            <div class="analysis-preview-water"></div>
-          </div>
-          <div class="analysis-preview-layout">
-            <div class="analysis-preview-grid">
-              <span class="analysis-preview-block analysis-preview-block-tall"></span>
-              <span class="analysis-preview-block"></span>
-              <span class="analysis-preview-block"></span>
-              <span class="analysis-preview-block"></span>
-              <span class="analysis-preview-block analysis-preview-block-thin"></span>
-              <span class="analysis-preview-block"></span>
-              <span class="analysis-preview-block"></span>
-            </div>
-            <div class="analysis-preview-actions">
-              <button class="analysis-preview-button analysis-preview-button-primary" type="button">确认发布</button>
-              <button class="analysis-preview-button" type="button">保存草稿箱</button>
-            </div>
+              {{ step }}
+            </span>
           </div>
         </div>
       </div>
@@ -151,6 +130,7 @@
     </section>
 
     <div v-if="showSuccessToast" class="publish-success-toast">
+      <button class="publish-success-close" type="button" aria-label="关闭弹窗" @click="closeSuccessToast">×</button>
       <div class="publish-success-main">
         <div class="publish-success-check">✓</div>
         <div class="publish-success-text">笔记发布成功，已同步至小红书</div>
@@ -191,10 +171,12 @@ const publishStartTime = ref(0)
 const isPublishing = computed(() => publishState.value === 'publishing')
 const showSuccessToast = computed(() => publishState.value === 'published')
 const displayAnalysisProgress = computed(() => Math.round(analysisProgress.value))
-const analysisNodePosition = computed(() => Math.max(14, Math.min(analysisProgress.value, 96)))
+const analysisScaleMarks = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
 const pageTitle = computed(() => defaultState.pageTitle)
 const pageSubtitle = computed(() => (isPublishing.value ? '正在发布到绑定账号' : defaultState.pageSubtitle))
 const detailTitle = computed(() => (isPublishing.value ? '正在发布到绑定账号' : defaultState.detailTitle))
+const analysisRemainingSeconds = computed(() => Math.max(1, Math.ceil(((100 - analysisProgress.value) / 100) * (analysisDuration / 1000))))
+const analysisRemainingText = computed(() => `${analysisRemainingSeconds.value}s left`)
 const activeAnalysisStepIndex = computed(() => {
   if (analysisProgress.value < 18) {
     return 0
@@ -301,6 +283,10 @@ const copyPublishLink = async () => {
   } catch (error) {
     console.error(error)
   }
+}
+
+const closeSuccessToast = () => {
+  publishState.value = 'idle'
 }
 
 onMounted(() => {
