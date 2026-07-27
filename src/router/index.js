@@ -33,6 +33,12 @@ const routes = [
     name: 'note-tracking',
     component: () => import('@/views/NoteTrackingView.vue'),
     meta: { title: '笔记数据跟踪', requiresAuth: true }
+  },
+  {
+    path: '/account-settings',
+    name: 'account-settings',
+    component: () => import('@/views/AccountSettingsView.vue'),
+    meta: { title: '账号设置', requiresAuth: true }
   }
 ]
 

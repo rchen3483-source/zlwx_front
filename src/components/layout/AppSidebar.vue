@@ -23,13 +23,13 @@
         <span>笔记数据跟踪</span>
         <span class="chevron">⌄</span>
       </RouterLink>
-      <a class="nav-item" href="#">
+      <RouterLink to="/account-settings" class="nav-item" :class="{ active: currentRoute === '/account-settings' }">
         <span class="nav-icon">
           <img class="nav-menu-icon" src="/assets/nav-account-settings.png" alt="账号设置图标" />
         </span>
         <span>账号设置</span>
         <span class="chevron">⌄</span>
-      </a>
+      </RouterLink>
     </nav>
 
     <div class="sidebar-bottom">
