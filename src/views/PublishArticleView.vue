@@ -1,5 +1,5 @@
 <script setup>
-import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import AppTopbar from '@/components/layout/AppTopbar.vue'
@@ -52,6 +52,20 @@ const selectedContentId = ref('')
 const workflowBackendStatus = ref('')
 const generatingContentId = ref('')
 let workflowController = null
+const isListening = ref(false)
+const speechSupported = ref(true)
+let speechRecognition = null
+const interimSpeechText = ref('')
+let shouldProcessSpeech = false
+
+const displayText = computed(() => {
+  const confirmed = materialText.value.trimEnd()
+  const interim = interimSpeechText.value.trim()
+
+  if (!interim) return materialText.value
+
+  return confirmed ? `${confirmed} ${interim}` : interim
+})
 
 const readCachedWorkflow = () => {
   try {
@@ -153,6 +167,148 @@ const appendFiles = (files) => {
 
 const openFilePicker = () => {
   fileInput.value?.click()
+}
+
+const getSpeechRecognitionConstructor = () => {
+  if (typeof window === 'undefined') return null
+  return window.SpeechRecognition || window.webkitSpeechRecognition || null
+}
+
+const appendSpeechText = (value) => {
+  const text = String(value || '').trim()
+  if (!text) return
+  const current = materialText.value.trimEnd()
+  materialText.value = current ? `${current}\n${text}` : text
+}
+
+const stopVoiceInput = () => {
+  shouldProcessSpeech = false
+  if (speechRecognition) {
+    speechRecognition.stop()
+  }
+  isListening.value = false
+  interimSpeechText.value = ''
+}
+
+const startVoiceInput = () => {
+  errorMessage.value = ''
+  const SpeechRecognition = getSpeechRecognitionConstructor()
+  if (!SpeechRecognition) {
+    speechSupported.value = false
+    errorMessage.value = '当前浏览器不支持语音输入，请使用 Chrome 或 Edge'
+    return
+  }
+
+  speechSupported.value = true
+  const recognition = new SpeechRecognition()
+  speechRecognition = recognition
+  recognition.lang = 'zh-CN'
+  recognition.continuous = true
+  recognition.interimResults = true
+  shouldProcessSpeech = true
+
+  recognition.onstart = () => {
+    isListening.value = true
+  }
+
+  recognition.onresult = (event) => {
+    if (!shouldProcessSpeech) return
+
+    let interim = ''
+    let final = ''
+
+    // 遍历所有结果，区分临时和最终
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      const transcript = event.results[i][0].transcript
+      if (event.results[i].isFinal) {
+        final += transcript
+      } else {
+        interim += transcript
+      }
+    }
+
+    // 最终结果追加到 materialText
+    if (final) {
+      appendSpeechText(final)
+    }
+
+    // 临时结果更新到 interimSpeechText
+    interimSpeechText.value = interim
+  }
+
+  recognition.onerror = (event) => {
+    isListening.value = false
+    interimSpeechText.value = ''
+    const reason = event?.error === 'not-allowed'
+      ? '麦克风权限被拒绝，请在浏览器中允许麦克风后重试'
+      : '语音输入失败，请重试或改用键盘输入'
+    errorMessage.value = reason
+  }
+
+  recognition.onend = () => {
+    isListening.value = false
+    interimSpeechText.value = ''
+  }
+
+  try {
+    recognition.start()
+  } catch {
+    isListening.value = false
+    errorMessage.value = '语音输入启动失败，请稍后重试'
+  }
+}
+
+const toggleVoiceInput = () => {
+  if (isListening.value) {
+    stopVoiceInput()
+    return
+  }
+  startVoiceInput()
+}
+
+const handleTextareaInput = (event) => {
+  const newValue = event.target.value
+
+  // 如果正在语音识别且用户编辑了内容
+  if (isListening.value) {
+    const confirmed = materialText.value.trimEnd()
+    const interim = interimSpeechText.value.trim()
+    const displayLength = displayText.value.length
+
+    // 检测是否修改了临时文本区域
+    let userEditedInterim = false
+
+    if (newValue.length < displayLength) {
+      // 用户删除了内容
+      userEditedInterim = true
+    } else if (newValue.length > displayLength) {
+      // 用户在末尾追加了内容
+      userEditedInterim = true
+    } else if (interim) {
+      // 长度相同但有临时文本，检查确认部分是否被修改
+      // displayText 格式: "confirmed interim" (中间有空格)
+      const expectedPrefix = confirmed ? `${confirmed} ` : ''
+      if (newValue.slice(0, expectedPrefix.length) !== expectedPrefix) {
+        userEditedInterim = true
+      }
+    } else {
+      // 长度相同且无临时文本，检查内容是否改变
+      if (newValue !== materialText.value) {
+        userEditedInterim = true
+      }
+    }
+
+    if (userEditedInterim) {
+      // 用户修改了临时区域，停止识别并确认当前内容
+      stopVoiceInput()
+      materialText.value = newValue
+      interimSpeechText.value = ''
+      return
+    }
+  }
+
+  // 正常更新 materialText
+  materialText.value = newValue
 }
 
 const handleFileChange = (event) => {
@@ -465,6 +621,7 @@ const generateFromTrend = async (item) => {
 onMounted(restoreLastSearch)
 
 onBeforeUnmount(() => {
+  stopVoiceInput()
   writeCachedWorkflow()
   workflowController?.abort()
   selectedImages.value.forEach((item) => {
@@ -528,11 +685,23 @@ onBeforeUnmount(() => {
         <div class="search-input">
           <span class="search-icon">⌕</span>
           <textarea
-            v-model="materialText"
             class="search-textarea"
+            :value="displayText"
+            @input="handleTextareaInput"
             placeholder="开始输入文本资料"
             :disabled="isProcessing"
           ></textarea>
+          <button
+            class="voice-input-btn"
+            type="button"
+            :class="{ 'is-listening': isListening, 'is-unsupported': !speechSupported }"
+            :aria-pressed="isListening"
+            :aria-label="isListening ? '停止语音输入' : '开始语音输入'"
+            @click="toggleVoiceInput"
+          >
+            <span class="voice-dot" aria-hidden="true"></span>
+            <span>{{ isListening ? '正在听写' : '语音输入' }}</span>
+          </button>
         </div>
 
         <input
