@@ -59,7 +59,7 @@ export const getWorkflow = (runId, { signal } = {}) =>
 export const generateWorkflow = (runId, payload, { signal } = {}) =>
   withWorkflowError(
     () =>
-      request.post(`/v1/workflows/${encodeURIComponent(runId)}/generate`, payload, {
+      request.post(`/v1/workflows/${encodeURIComponent(runId)}/select`, payload, {
         signal
       }),
     '启动内容生成失败'
