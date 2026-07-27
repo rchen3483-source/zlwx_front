@@ -43,7 +43,7 @@ const router = createRouter({
 
 router.beforeEach((to, _from, next) => {
   if (to.meta.title) {
-    document.title = `${to.meta.title} - 智旅文宣`
+    document.title = `${to.meta.title} - 智旅云宣`
   }
 
   const hasToken = !!localStorage.getItem(AUTH_TOKEN_KEY)
