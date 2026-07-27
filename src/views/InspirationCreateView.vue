@@ -15,65 +15,62 @@
     </section>
 
     <section v-else-if="isAnalyzing" class="inspiration-loading-shell">
-      <div class="inspiration-loading-top">
-        <div class="analysis-percent-pill">
-          <div class="analysis-percent-readout">
-            <span class="analysis-percent-value">{{ displayAnalysisProgress }}</span>
-            <span class="analysis-percent-unit">%</span>
-          </div>
-        </div>
-        <div class="analysis-heading">
-          <h1>{{ loadingTitle }}</h1>
-          <p>{{ loadingDescription }}</p>
-        </div>
-      </div>
+      <div class="analysis-wave analysis-wave-left"></div>
+      <div class="analysis-wave analysis-wave-right"></div>
 
       <div class="analysis-board">
-        <div class="analysis-status-card">
-          <div class="analysis-progress-track">
-            <span class="analysis-progress-line"></span>
+        <div class="analysis-card">
+          <div class="analysis-card-top">
+            <div class="analysis-card-label">
+              <span class="analysis-card-bolt">✦</span>
+              <span>Generating...</span>
+            </div>
+            <div class="analysis-card-time">
+              <span class="analysis-card-clock">◔</span>
+              <span>{{ analysisRemainingText }}</span>
+            </div>
+          </div>
+
+          <div class="analysis-card-main">
+            <div class="analysis-percent-readout">
+              <span class="analysis-percent-value">{{ displayAnalysisProgress }}</span>
+              <span class="analysis-percent-unit">%</span>
+            </div>
+
+            <div class="analysis-heading">
+              <h1>{{ loadingTitle }}</h1>
+              <p>{{ loadingDescription }}</p>
+            </div>
+          </div>
+
+          <div class="analysis-scale">
+            <span v-for="mark in analysisScaleMarks" :key="mark">{{ mark }}</span>
+          </div>
+
+          <div class="analysis-progress-shell">
+            <div
+              class="analysis-progress-fill-card"
+              :style="{ width: `${Math.max(displayAnalysisProgress, 8)}%` }"
+            ></div>
             <span
-              class="analysis-progress-fill"
-              :style="{ width: `${displayAnalysisProgress}%` }"
-            ></span>
-            <span class="analysis-progress-node analysis-progress-node-start"></span>
-            <span
-              class="analysis-progress-node analysis-progress-node-active"
-              :style="{ left: `calc(${analysisNodePosition}% - 23px)` }"
+              v-for="mark in analysisScaleMarks.slice(1, -1)"
+              :key="`line-${mark}`"
+              class="analysis-progress-divider"
             ></span>
           </div>
 
-          <div class="analysis-steps">
-            <div
+          <div class="analysis-step-pills">
+            <span
               v-for="(step, index) in analysisSteps"
               :key="step"
-              class="analysis-step-row"
+              class="analysis-step-pill"
               :class="analysisStepClass(index)"
             >
-              <span class="analysis-step-dot"></span>
-              <span class="analysis-step-text">{{ step }}</span>
-            </div>
+              {{ step }}
+            </span>
           </div>
-        </div>
 
-        <div class="analysis-preview-card">
-          <div class="analysis-preview-phone">
-            <div class="analysis-preview-sky"></div>
-            <div class="analysis-preview-hills"></div>
-            <div class="analysis-preview-water"></div>
-          </div>
-          <div class="analysis-preview-layout">
-            <div class="analysis-preview-grid">
-              <span class="analysis-preview-block analysis-preview-block-tall"></span>
-              <span class="analysis-preview-block"></span>
-              <span class="analysis-preview-block"></span>
-              <span class="analysis-preview-block"></span>
-              <span class="analysis-preview-block analysis-preview-block-thin"></span>
-              <span class="analysis-preview-block"></span>
-              <span class="analysis-preview-block"></span>
-            </div>
-            <p class="analysis-api-status">{{ workflowStatusText }}</p>
-          </div>
+          <p class="analysis-api-status">{{ workflowStatusText }}</p>
         </div>
       </div>
     </section>
@@ -329,6 +326,8 @@ const publishProgress = ref(0)
 const publishVisibility = ref('private')
 const showPublishConfirm = ref(false)
 const localNotice = ref('')
+const analysisElapsedMs = ref(0)
+let analysisTimer = 0
 let workflowController = null
 let edgeLoginTimer = null
 let edgeLoginAttempts = 0
@@ -349,7 +348,15 @@ const workflowProgress = computed(() => {
   return Number.isFinite(value) ? Math.max(0, Math.min(100, value)) : 0
 })
 const displayAnalysisProgress = computed(() => Math.round(workflowProgress.value))
-const analysisNodePosition = computed(() => Math.max(14, Math.min(workflowProgress.value, 96)))
+const analysisScaleMarks = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
+
+// 后端不返回预计耗时，用「已耗时 / 已完成进度」线性外推剩余秒数
+const analysisRemainingText = computed(() => {
+  const progress = workflowProgress.value
+  if (progress < 3 || analysisElapsedMs.value < 1000) return 'estimating...'
+  const remainingMs = (analysisElapsedMs.value / progress) * (100 - progress)
+  return `${Math.max(1, Math.ceil(remainingMs / 1000))}s left`
+})
 const isAnalyzing = computed(
   () => Boolean(runId.value) && !errorMessage.value && !terminalStatuses.has(workflow.value?.status)
 )
@@ -467,11 +474,29 @@ const startEdgeLogin = async () => {
   }
 }
 
+const stopAnalysisTimer = () => {
+  if (analysisTimer) {
+    window.clearInterval(analysisTimer)
+    analysisTimer = 0
+  }
+}
+
+const startAnalysisTimer = () => {
+  stopAnalysisTimer()
+  const startedAt = performance.now()
+  analysisElapsedMs.value = 0
+  analysisTimer = window.setInterval(() => {
+    analysisElapsedMs.value = performance.now() - startedAt
+    if (!isAnalyzing.value) stopAnalysisTimer()
+  }, 500)
+}
+
 const restoreWorkflow = async () => {
   if (!runId.value) return
   errorMessage.value = ''
   workflowController?.abort()
   workflowController = new AbortController()
+  startAnalysisTimer()
 
   try {
     const initial = await getWorkflow(runId.value, { signal: workflowController.signal })
@@ -494,6 +519,8 @@ const restoreWorkflow = async () => {
       if (error?.workflow) applyWorkflow(error.workflow)
       errorMessage.value = error?.message || '恢复工作流失败'
     }
+  } finally {
+    stopAnalysisTimer()
   }
 }
 
@@ -603,5 +630,6 @@ onMounted(restoreWorkflow)
 onBeforeUnmount(() => {
   workflowController?.abort()
   clearEdgeLoginTimer()
+  stopAnalysisTimer()
 })
 </script>

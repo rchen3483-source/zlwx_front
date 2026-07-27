@@ -24,7 +24,7 @@
       <article class="card stats-card">
         <div class="section-head metrics-head">
           <div><h2>笔记数据总览 <span class="muted">ⓘ</span></h2><div class="tab-line"></div></div>
-          <a href="#">查看详情 ›</a>
+          <RouterLink :to="{ name: 'note-tracking' }">查看详情 ›</RouterLink>
         </div>
         <div class="platform-selector" role="radiogroup">
           <span class="platform-selector-label">选择平台</span>
@@ -54,39 +54,6 @@
         </div>
       </article>
 
-      <article class="card pie-card">
-        <div class="section-head">
-          <h2>Xxx数据</h2>
-          <button class="ghost-btn" aria-label="更多">···</button>
-        </div>
-
-        <div class="ring-wrap">
-          <div
-            class="ring-chart"
-            :style="{ '--ring-progress': currentData.summary.score }"
-          >
-            <div class="ring-inner">
-              <strong>{{ currentData.summary.score }}</strong>
-              <small>互动指数</small>
-            </div>
-          </div>
-        </div>
-
-        <div class="summary-list">
-          <div class="summary-item">
-            <span class="summary-label">浏览量</span>
-            <strong class="summary-value">{{ currentData.summary.views }}</strong>
-          </div>
-          <div class="summary-item">
-            <span class="summary-label">收藏量</span>
-            <strong class="summary-value">{{ currentData.summary.favorites }}</strong>
-          </div>
-          <div class="summary-item">
-            <span class="summary-label">评论数</span>
-            <strong class="summary-value">{{ currentData.summary.comments }}</strong>
-          </div>
-        </div>
-      </article>
     </section>
 
     <section class="recommend-grid">

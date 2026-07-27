@@ -31,14 +31,25 @@ const statusLabels = {
   FAILED: '工作流执行失败'
 }
 
-const xiaohongshu = ref(true)
-const douyin = ref(false)
-const wechat = ref(false)
-const bilibili = ref(false)
+// 热点笔记推荐：前 4 条渲染成卡片（一行四个），其余在下方以排行列表列出
+const TREND_CARD_LIMIT = 4
+
+// supported 为 false 的平台后端尚未接入，可切换但仅作视觉反馈，不参与实际发布
+const channels = [
+  { key: 'xiaohongshu', label: '小红书', icon: '/assets/xiaohongshu.png', supported: true },
+  { key: 'douyin', label: '抖音', icon: '/assets/douyin.png', supported: false },
+  { key: 'wechat', label: '微信公众号', icon: '/assets/wechat.png', supported: false },
+  { key: 'bilibili', label: 'bilibili', icon: '/assets/bilibili.png', supported: false }
+]
+const selectedChannel = ref('xiaohongshu')
 const materialText = ref('')
 const isDragOver = ref(false)
 const selectedImages = ref([])
-const trendRecommendations = ref([])
+// 保存后端返回的全部热点；卡片区与排行区都由它派生
+const allHotspots = ref([])
+const trendRecommendations = computed(() => allHotspots.value.slice(0, TREND_CARD_LIMIT))
+// 第 5 条及以后进入「其他热点排行」列表
+const restHotspots = computed(() => allHotspots.value.slice(TREND_CARD_LIMIT))
 const trendVisible = ref(false)
 const trendCardsVisible = ref(false)
 const fileInput = ref(null)
@@ -87,9 +98,10 @@ const cacheableInputImages = () =>
 
 const writeCachedWorkflow = (state = {}) => {
   const cachedRunId = state.run_id || runId.value
+  // 缓存全量热点，保证刷新后卡片区和排行区都能复原
   const cachedHotspots = Array.isArray(state.hotspots)
-    ? state.hotspots.slice(0, 4)
-    : trendRecommendations.value.slice(0, 4)
+    ? state.hotspots
+    : allHotspots.value
   if (!cachedRunId || !cachedHotspots.length) return
   const inputImages = Array.isArray(state.input_images)
     ? state.input_images
@@ -354,8 +366,8 @@ const removeImage = (imageId) => {
 }
 
 const validateBeforeSearch = () => {
-  if (!xiaohongshu.value || douyin.value || wechat.value || bilibili.value) {
-    throw new Error('当前仅支持单独选择小红书')
+  if (selectedChannel.value !== 'xiaohongshu') {
+    throw new Error('当前仅支持小红书发布，请切换到小红书')
   }
   if (!materialText.value.trim()) {
     throw new Error('请输入景区或场所讲解词')
@@ -399,7 +411,7 @@ const applyRestoredWorkflow = async (state) => {
     restoreInputImages(state.input_images)
   }
   if (Array.isArray(state.hotspots) && state.hotspots.length) {
-    trendRecommendations.value = state.hotspots.slice(0, 4).map(normalizeHotspot)
+    allHotspots.value = state.hotspots.map(normalizeHotspot)
     workflowProgress.value = Number(state.progress) || 45
     workflowStatus.value =
       state.status === 'WAITING_USER_SELECTION'
@@ -451,7 +463,7 @@ const showTrends = async () => {
   if (isProcessing.value) return
 
   errorMessage.value = ''
-  trendRecommendations.value = []
+  allHotspots.value = []
   trendVisible.value = true
   trendCardsVisible.value = false
   workflowProgress.value = 0
@@ -505,8 +517,8 @@ const showTrends = async () => {
         workflowStatus.value = statusLabels[current.status] || current.status
       }
     })
-    trendRecommendations.value = Array.isArray(state.hotspots)
-      ? state.hotspots.slice(0, 4).map(normalizeHotspot)
+    allHotspots.value = Array.isArray(state.hotspots)
+      ? state.hotspots.map(normalizeHotspot)
       : []
     workflowProgress.value = Number(state.progress) || 45
     workflowBackendStatus.value = state.status
@@ -541,6 +553,25 @@ const formatHotScore = (value) => {
   if (!Number.isFinite(numericValue)) return '—'
   if (Number.isInteger(numericValue)) return String(numericValue)
   return numericValue.toFixed(2).replace(/0+$/, '').replace(/\.$/, '')
+}
+
+// 打分框配色：TOP1 红色渐变，TOP2 起橙色渐变，第 3 名之后每名递减 10% 不透明度
+const RANK_RED_GRADIENT = 'linear-gradient(145deg, #F94242, #A41717)'
+const RANK_ORANGE_GRADIENT = 'linear-gradient(145deg, #E18445, #DA600E)'
+
+const scoreBoxClass = (rank) => {
+  const value = Number(rank)
+  if (!Number.isFinite(value) || value < 1) return 'is-rank-muted'
+  return value === 1 ? 'is-rank-top1' : 'is-rank-orange'
+}
+
+const scoreBoxStyle = (rank) => {
+  const value = Number(rank)
+  if (!Number.isFinite(value) || value < 1) return {}
+  if (value === 1) return { backgroundImage: RANK_RED_GRADIENT, opacity: 1 }
+  // rank 2 满不透明，rank 3 起每名 -10%，最低保留 0.35 以保证文字可读
+  const opacity = value === 2 ? 1 : Math.max(0.35, 1 - (value - 2) * 0.1)
+  return { backgroundImage: RANK_ORANGE_GRADIENT, opacity: Number(opacity.toFixed(2)) }
 }
 
 const formatPublishDate = (value, label) => {
@@ -639,34 +670,28 @@ onBeforeUnmount(() => {
         <h2>平台选择</h2>
       </div>
 
-      <div class="channel-grid">
-        <label class="channel-card">
+      <div class="channel-grid" role="radiogroup" aria-label="平台选择">
+        <label
+          v-for="channel in channels"
+          :key="channel.key"
+          class="channel-card"
+          :class="{
+            'is-selected': selectedChannel === channel.key,
+            'is-unavailable': !channel.supported
+          }"
+          :title="channel.label"
+        >
           <div class="channel-meta">
-            <img class="channel-logo-image" src="/assets/xiaohongshu.png" alt="小红书图标" />
-            <strong>小红书</strong>
+            <img class="channel-logo-image" :src="channel.icon" :alt="`${channel.label}图标`" />
+            <strong>{{ channel.label }}</strong>
           </div>
-          <input type="checkbox" v-model="xiaohongshu" :disabled="isProcessing" />
-        </label>
-        <label class="channel-card">
-          <div class="channel-meta">
-            <img class="channel-logo-image" src="/assets/douyin.png" alt="抖音图标" />
-            <strong>抖音</strong>
-          </div>
-          <input type="checkbox" v-model="douyin" disabled title="当前暂不支持抖音" />
-        </label>
-        <label class="channel-card">
-          <div class="channel-meta">
-            <img class="channel-logo-image" src="/assets/wechat.png" alt="微信公众号图标" />
-            <strong>微信公众号</strong>
-          </div>
-          <input type="checkbox" v-model="wechat" disabled title="当前暂不支持微信公众号" />
-        </label>
-        <label class="channel-card">
-          <div class="channel-meta">
-            <img class="channel-logo-image" src="/assets/bilibili.png" alt="bilibili图标" />
-            <strong>bilibili</strong>
-          </div>
-          <input type="checkbox" v-model="bilibili" disabled title="当前暂不支持 bilibili" />
+          <input
+            type="radio"
+            name="publish-channel"
+            :value="channel.key"
+            v-model="selectedChannel"
+            :disabled="isProcessing"
+          />
         </label>
       </div>
 
@@ -777,7 +802,7 @@ onBeforeUnmount(() => {
       </div>
 
       <div class="section-head trend-head trend-module" :class="{ 'is-visible': trendVisible }">
-        <h2>热榜推荐</h2>
+        <h2>热点笔记推荐</h2>
         <a href="#">查看更多</a>
       </div>
 
@@ -792,7 +817,12 @@ onBeforeUnmount(() => {
           }"
         >
           <div class="trend-card-heading">
-            <div class="trend-score-box" :aria-label="`综合热度 ${formatHotScore(item.hot_score)}`">
+            <div
+              class="trend-score-box"
+              :class="scoreBoxClass(item.rank)"
+              :style="scoreBoxStyle(item.rank)"
+              :aria-label="`综合热度 ${formatHotScore(item.hot_score)}`"
+            >
               {{ formatHotScore(item.hot_score) }}
             </div>
             <div class="trend-title-group">
@@ -864,6 +894,69 @@ onBeforeUnmount(() => {
             </button>
           </div>
         </article>
+      </div>
+
+      <div
+        v-if="restHotspots.length"
+        class="trend-rank-block trend-module"
+        :class="{ 'is-visible': trendVisible }"
+      >
+        <div class="section-head trend-rank-head">
+          <h3>其他热点排行</h3>
+          <span class="trend-rank-count">共 {{ restHotspots.length }} 条，下滑查看</span>
+        </div>
+
+        <ul class="trend-rank-list">
+          <li
+            v-for="item in restHotspots"
+            :key="item.content_id"
+            class="trend-rank-item"
+            :class="{ 'is-selected': selectedContentId === item.content_id }"
+          >
+            <span class="trend-rank-index" :style="scoreBoxStyle(item.rank)">
+              {{ item.rank }}
+            </span>
+
+            <div class="trend-rank-main">
+              <p class="trend-rank-title">{{ item.title }}</p>
+              <div class="trend-rank-metrics">
+                <span>热度 {{ formatMetric(item.hot_score) }}</span>
+                <span>浏览 {{ formatMetric(item.views) }}</span>
+                <span>点赞 {{ formatMetric(item.likes) }}</span>
+                <span>评论 {{ formatMetric(item.comments) }}</span>
+              </div>
+            </div>
+
+            <div class="trend-rank-actions">
+              <button
+                class="trend-rank-btn"
+                type="button"
+                :disabled="!hasSafeContentUrl(item.content_url)"
+                @click="openTrendDetail(item)"
+              >
+                查看详情
+              </button>
+              <button
+                class="trend-rank-btn is-primary"
+                type="button"
+                :disabled="
+                  Boolean(generatingContentId) ||
+                  workflowBackendStatus === 'GENERATING' ||
+                  workflowBackendStatus === 'PUBLISHED'
+                "
+                @click="generateFromTrend(item)"
+              >
+                {{
+                  generatingContentId === item.content_id
+                    ? '启动中…'
+                    : selectedContentId === item.content_id
+                      ? '重新生成'
+                      : '生成同款'
+                }}
+              </button>
+            </div>
+          </li>
+        </ul>
       </div>
     </section>
   </AppLayout>
