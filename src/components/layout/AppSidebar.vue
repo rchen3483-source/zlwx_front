@@ -2,10 +2,10 @@
   <aside class="sidebar">
     <div class="brand">
       <div class="brand-mark">
-        <img class="brand-logo" src="/assets/brand-logo.png" alt="智旅文宣" />
+        <img class="brand-logo" src="/assets/brand-logo.png" alt="智旅云宣" />
       </div>
       <div class="brand-copy">
-        <strong>智旅文宣</strong>
+        <strong>智旅云宣</strong>
       </div>
     </div>
 
