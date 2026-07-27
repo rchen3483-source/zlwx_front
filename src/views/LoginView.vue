@@ -1,16 +1,32 @@
 <template>
   <section class="auth-page">
+    <div class="auth-aurora auth-aurora-one"></div>
+    <div class="auth-aurora auth-aurora-two"></div>
+    <div class="auth-aurora auth-aurora-three"></div>
+    <div class="auth-grid"></div>
+
     <div class="auth-shell">
       <section class="auth-hero">
-        <img class="auth-hero-logo" src="/assets/login-white-logo.png" alt="智旅云宣标志" />
+        <div class="auth-brand">
+          <img class="auth-brand-logo" src="/assets/brand-logo.png" alt="智旅文宣" />
+          <span>智旅文宣</span>
+        </div>
 
         <div class="auth-copy">
           <span class="auth-kicker">AI Tourism Studio</span>
-          <h1>
-            <span class="auth-title-line">智旅云宣</span>
-            <span class="auth-title-line">景区多平台运营智能助手</span>
-          </h1>
+          <h1>登录后进入 AI 文宣助手主界面</h1>
           <p>面向景区、场馆与文旅运营团队的内容生产工作台，统一完成图文创作、热点借鉴、数据跟踪与发布协同。</p>
+        </div>
+
+        <div class="auth-feature-list">
+          <div class="auth-feature-card">
+            <strong>智能创作</strong>
+            <p>图文笔记、热点借鉴与发布流程统一串联。</p>
+          </div>
+          <div class="auth-feature-card">
+            <strong>平台协同</strong>
+            <p>覆盖小红书、抖音、公众号与 bilibili 的运营入口。</p>
+          </div>
         </div>
       </section>
 

@@ -1,11 +1,6 @@
 <template>
   <header class="topbar" :class="{ 'topbar-flat': flat }">
-    <div class="topbar-main">
-      <button v-if="showBackButton" class="topbar-back" type="button" aria-label="返回上一级" @click="goBack">
-        <span>‹</span>
-      </button>
-      <div class="topbar-title">{{ title }}</div>
-    </div>
+    <div class="topbar-title">{{ title }}</div>
 
     <div class="topbar-actions">
       <button class="icon-btn" aria-label="消息">
@@ -27,7 +22,6 @@
 
 <script setup>
 import { computed } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user.js'
 
 defineProps({
@@ -46,17 +40,5 @@ defineProps({
 })
 
 const userStore = useUserStore()
-const route = useRoute()
-const router = useRouter()
 const username = computed(() => userStore.username || 'Slash X')
-const showBackButton = computed(() => route.path !== '/' && route.path !== '/login')
-
-const goBack = async () => {
-  if (window.history.length > 1) {
-    await router.back()
-    return
-  }
-
-  await router.push('/')
-}
 </script>
