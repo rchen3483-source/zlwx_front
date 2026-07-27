@@ -1,5 +1,29 @@
 <template>
   <section class="auth-page">
+    <video
+      ref="bgVideo"
+      class="auth-bg-video"
+      src="/assets/login-bg.mp4"
+      autoplay
+      loop
+      muted
+      playsinline
+      preload="auto"
+      tabindex="-1"
+      aria-hidden="true"
+    ></video>
+
+    <button
+      class="auth-sound-toggle"
+      type="button"
+      :aria-pressed="!isMuted"
+      :title="isMuted ? '开启背景音' : '关闭背景音'"
+      @click="toggleSound"
+    >
+      <span class="auth-sound-icon" aria-hidden="true">{{ isMuted ? '🔇' : '🔊' }}</span>
+      <span>{{ isMuted ? '声音已关闭' : '声音已开启' }}</span>
+    </button>
+
     <div class="auth-shell">
       <section class="auth-hero">
         <img class="auth-hero-logo" src="/assets/login-white-logo.png" alt="智旅云宣标志" />
@@ -64,7 +88,7 @@
 </template>
 
 <script setup>
-import { reactive, ref } from 'vue'
+import { onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user.js'
 
@@ -80,6 +104,32 @@ const form = reactive({
 const rememberMe = ref(true)
 const isSubmitting = ref(false)
 const errorMessage = ref('')
+
+const bgVideo = ref(null)
+// 默认关闭声音：静音也是浏览器允许自动播放的前提
+const isMuted = ref(true)
+
+onMounted(() => {
+  const video = bgVideo.value
+  if (!video) return
+  video.muted = true
+  // 部分浏览器会拒绝自动播放的 Promise，忽略即可，海报层仍可见
+  video.play?.().catch(() => {})
+})
+
+const toggleSound = () => {
+  const video = bgVideo.value
+  if (!video) return
+
+  const nextMuted = !isMuted.value
+  video.muted = nextMuted
+  isMuted.value = nextMuted
+
+  // 开启声音时若视频被暂停（自动播放被拦截），借用户这次点击手势恢复播放
+  if (!nextMuted && video.paused) {
+    video.play?.().catch(() => {})
+  }
+}
 
 const resolveRedirect = () => {
   if (typeof route.query.redirect === 'string' && route.query.redirect.startsWith('/')) {
